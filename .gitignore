@@ -1,0 +1,6 @@
+/Cargo.lock
+/target
+/.vscode
+.env
+/crates/semantica-frontend/dist
+Secrets*.toml

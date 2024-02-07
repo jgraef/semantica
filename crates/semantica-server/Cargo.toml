@@ -1,0 +1,30 @@
+[package]
+name = "semantica-server"
+version = "0.1.0"
+edition = "2021"
+authors = ["Janosch Gräf <janosch.graef@gmail.com>"]
+
+[dependencies]
+tracing = "0.1"
+thiserror = "1"
+tokio = { version = "1", features = ["sync"] }
+futures = "0.3"
+axum = { version = "0.7", features = ["ws"] }
+shuttle-axum = "0.38"
+shuttle-runtime = "0.38"
+shuttle-shared-db = { version = "0.38", features = ["postgres", "sqlx"] }
+shuttle-secrets = "0.38"
+sqlx = { version = "0.7", features = ["uuid", "chrono", "postgres", "runtime-tokio"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+hf-textgen = { git = "https://github.com/jgraef/hf-textgen.git" }
+murmur3 = { git = "https://github.com/jgraef/murmur3.git" }
+askama = { version = "0.12", features = ["serde-json", "markdown"] }
+uuid = { version = "1.7", features = ["serde", "v4"] }
+chrono = { version = "0.4.33", features = ["serde"] }
+rand = "0.8.5"
+argon2 = "0.5"
+axum-extra = { version = "0.9", features = ["cookie", "cookie-signed", "typed-header"] }
+
+[dependencies.semantica-protocol]
+path = "../semantica-protocol"

@@ -1,0 +1,12 @@
+[package]
+name = "semantica-protocol"
+version = "0.1.0"
+edition = "2021"
+authors = ["Janosch Gräf <janosch.graef@gmail.com>"]
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+uuid = { version = "1.7", features = ["serde"] }
+chrono = { version = "0.4.33", features = ["serde"] }
+thiserror = "1"
+derive_more = "0.99"
