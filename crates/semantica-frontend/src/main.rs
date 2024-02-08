@@ -1,6 +1,7 @@
-mod app;
-mod client;
-mod storage;
+pub mod app;
+pub mod error;
+pub mod storage;
+pub mod utils;
 
 use wasm_bindgen::JsCast;
 

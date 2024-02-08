@@ -20,6 +20,7 @@ use uuid::Uuid;
     Serialize,
     Deserialize,
     derive_more::From,
+    derive_more::Display, derive_more::FromStr
 )]
 pub struct UserId(pub Uuid);
 

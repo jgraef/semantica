@@ -58,14 +58,9 @@ CREATE TABLE recipes (
     recipe_id UUID NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
     product UUID,
     ingredients UUID[] NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT utc_now(),
-    created_by UUID NOT NULL,
-    CONSTRAINT fk_created_by FOREIGN KEY(created_by) REFERENCES users(user_id),
     CONSTRAINT fk_product FOREIGN KEY(product) REFERENCES spells(spell_id)
 );
 
-CREATE INDEX index_recipes_created_by ON recipes(created_by);
-CREATE INDEX index_recipes_created_at ON recipes(created_at);
 CREATE INDEX index_recipes_product ON recipes(product);
 
 

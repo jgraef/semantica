@@ -5,19 +5,16 @@ use argon2::{
     PasswordHasher,
     PasswordVerifier,
 };
+use async_trait::async_trait;
 use axum::{
-    extract::State,
+    extract::{
+        FromRequestParts,
+        State,
+    },
+    http::request::Parts,
     Json,
 };
-use axum_extra::extract::{
-    cookie::Cookie,
-    SignedCookieJar,
-};
-use rand::{
-    distributions::Slice,
-    thread_rng,
-    Rng,
-};
+use rand::thread_rng;
 use semantica_protocol::{
     auth::{
         AuthRequest,
@@ -25,38 +22,20 @@ use semantica_protocol::{
         AuthSecret,
         NewUserRequest,
         NewUserResponse,
-        Secret,
     },
     error::ApiError,
     user::UserId,
 };
+use tower_sessions::Session;
 
 use crate::{
     context::{
+        create_secret,
         Context,
         Transaction,
     },
     error::Error,
 };
-
-fn create_secret(length: usize) -> Secret {
-    // this is url-safe
-    #[rustfmt::skip]
-    pub const ALPHABET: [char; 64] = [
-        '_', '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f', 'g',
-        'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
-        'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S',
-        'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
-    ];
-    // slice is not empty, so the unwrap will never fail.
-    let dist = Slice::new(&ALPHABET).unwrap();
-
-    thread_rng()
-        .sample_iter(dist)
-        .take(length)
-        .collect::<String>()
-        .into()
-}
 
 pub fn create_auth_secret() -> AuthSecret {
     const LENGTH: usize = 32;
@@ -66,7 +45,7 @@ pub fn create_auth_secret() -> AuthSecret {
 async fn auth_with_secret<'a>(
     transaction: &mut Transaction<'a>,
     user_id: UserId,
-    auth_secret: &AuthSecret,
+    auth_secret: AuthSecret,
 ) -> Result<Option<UserId>, Error> {
     let Some(row) = sqlx::query!(
         "SELECT auth_secret FROM users WHERE user_id = $1",
@@ -75,64 +54,88 @@ async fn auth_with_secret<'a>(
     .fetch_optional(transaction.db())
     .await?
     else {
+        tracing::debug!("user not found");
         return Ok(None);
     };
 
-    let auth_secret_hash = PasswordHash::new(&row.auth_secret)?;
+    let password_ok = tokio::task::spawn_blocking(move || {
+        let Ok(auth_secret_hash) = PasswordHash::new(&row.auth_secret)
+        else {
+            tracing::warn!("failed to hash auth_secret");
+            return false;
+        };
+        Argon2::default()
+            .verify_password(auth_secret.0 .0.as_bytes(), &auth_secret_hash)
+            .is_ok()
+    })
+    .await
+    .unwrap();
 
-    if Argon2::default()
-        .verify_password(auth_secret.0 .0.as_bytes(), &auth_secret_hash)
-        .is_err()
-    {
-        return Ok(None);
-    }
+    tracing::debug!(?password_ok);
 
-    Ok(Some(user_id))
+    Ok(password_ok.then_some(user_id))
 }
 
-pub async fn auth(
+pub async fn login(
     State(context): State<Context>,
+    session: Session,
     Json(auth_request): Json<AuthRequest>,
-    jar: SignedCookieJar,
-) -> Result<(SignedCookieJar, AuthResponse), Error> {
+) -> Result<Json<AuthResponse>, Error> {
     let mut transaction = context.transaction().await?;
+
+    tracing::debug!(?auth_request, "authentication request");
 
     let auth_result = match auth_request {
         AuthRequest::Secret {
             user_id,
             auth_secret,
-        } => auth_with_secret(&mut transaction, user_id, &auth_secret).await?,
+        } => auth_with_secret(&mut transaction, user_id, auth_secret).await?,
     };
 
-    if let Some(user_id) = auth_result {
+    let result = if let Some(user_id) = auth_result {
         sqlx::query!("UPDATE users SET last_login = utc_now()")
             .execute(transaction.db())
             .await?;
 
-        Ok((
-            jar.add(Cookie::new("user_id", user_id.0.to_string())),
-            AuthResponse { user_id },
-        ))
+        session.insert("user_id", user_id).await?;
+
+        Ok(Json(AuthResponse { user_id }))
     }
     else {
         Err(ApiError::AuthenticationFailed.into())
-    }
+    };
+
+    transaction.commit().await?;
+
+    result
+}
+
+pub async fn logout(session: Session) -> Result<(), Error> {
+    session.remove::<UserId>("user_id").await?;
+    Ok(())
 }
 
 pub async fn register(
     State(context): State<Context>,
+    session: Session,
     Json(new_user_request): Json<NewUserRequest>,
-    jar: SignedCookieJar,
-) -> Result<(SignedCookieJar, NewUserResponse), Error> {
+) -> Result<Json<NewUserResponse>, Error> {
     let mut transaction = context.transaction().await?;
 
     let auth_secret = create_auth_secret();
 
-    let salt = SaltString::generate(&mut thread_rng());
-    let auth_secret_hash = Argon2::default()
-        .hash_password(auth_secret.0 .0.as_bytes(), &salt)
+    let auth_secret_hash = {
+        let auth_secret = auth_secret.clone();
+        tokio::task::spawn_blocking(move || {
+            let salt = SaltString::generate(&mut thread_rng());
+            Argon2::default()
+                .hash_password(auth_secret.0 .0.as_bytes(), &salt)
+                .unwrap()
+                .to_string()
+        })
+        .await
         .unwrap()
-        .to_string();
+    };
 
     let response = sqlx::query!(
         "INSERT INTO users (name, auth_secret) VALUES ($1, $2) RETURNING user_id",
@@ -145,12 +148,33 @@ pub async fn register(
     transaction.commit().await?;
 
     let user_id: UserId = response.user_id.into();
+    session.insert("user_id", user_id).await?;
 
-    Ok((
-        jar.add(Cookie::new("user_id", user_id.0.to_string())),
-        NewUserResponse {
-            user_id,
-            auth_secret,
-        },
-    ))
+    Ok(Json(NewUserResponse {
+        user_id,
+        auth_secret,
+    }))
+}
+
+/// Extracts the UserId from the signed session cookie.
+pub struct Authenticated(pub UserId);
+
+#[async_trait]
+impl FromRequestParts<Context> for Authenticated {
+    type Rejection = Error;
+
+    async fn from_request_parts(parts: &mut Parts, state: &Context) -> Result<Self, Error> {
+        let get_user_id = move || {
+            async move {
+                let session = Session::from_request_parts(parts, state).await.ok()?;
+                session.get("user_id").await.ok().flatten()
+            }
+        };
+
+        Ok(Self(
+            get_user_id()
+                .await
+                .ok_or_else(|| ApiError::NotAuthenticated)?,
+        ))
+    }
 }

@@ -53,11 +53,17 @@ pub fn use_storage<
     }
 }
 
+pub fn use_user_logins() -> Storage<UserLogins> {
+    use_storage(StorageKey::UserLogins)
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct UserLogin {
     pub user_id: UserId,
     pub name: String,
     pub auth_secret: AuthSecret,
+    #[serde(default)]
+    pub login_link_noticed: bool,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]

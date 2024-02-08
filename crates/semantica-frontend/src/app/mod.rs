@@ -1,20 +1,27 @@
 pub mod index;
+pub mod login;
+pub mod register;
 
 use leptos::{
     component,
+    spawn_local,
     view,
+    with,
     DynAttrs,
     IntoView,
     Oco,
     Signal,
     SignalGet,
     SignalSet,
+    SignalUpdate,
+    WriteSignal,
 };
 use leptos_meta::{
     provide_meta_context,
     Html,
 };
 use leptos_router::{
+    Redirect,
     Route,
     Router,
     Routes,
@@ -25,25 +32,91 @@ use leptos_use::{
     ColorMode,
     UseColorModeReturn,
 };
+use semantica_client::Client;
+use url::Url;
 
-use self::index::Index;
-use crate::storage::{
-    use_storage,
-    Storage,
-    StorageKey,
-    UserLogins,
+use self::{
+    index::IndexPage,
+    login::{
+        LoginPage,
+        LoginWithUrl,
+    },
+    register::RegisterPage,
+};
+use crate::{
+    error::Error,
+    storage::{
+        use_user_logins,
+        Storage,
+        UserLogin,
+        UserLogins,
+    },
+    utils::LogAndDiscardErrorExt,
 };
 
 const GITHUB_PAGE: &'static str = "https://github.com/jgraef/semantica";
 
-#[derive(Clone, Debug)]
-pub struct Context {
-    user_logins: Storage<UserLogins>,
+#[component]
+pub fn BootstrapIcon(#[prop(into)] icon: Oco<'static, str>) -> impl IntoView {
+    view! { <i class={format!("bi bi-{icon}")}></i> }
 }
 
-pub fn provide_context() -> Context {
+fn get_api_url() -> Option<Url> {
+    let mut url: Url = gloo_utils::document().base_uri().ok()??.parse().ok()?;
+    log::debug!("base_url: {url}");
+
+    {
+        let mut path_segments = url.path_segments_mut().ok()?;
+        path_segments.push("api");
+        path_segments.push("v1");
+    }
+
+    log::debug!("api_url: {url}");
+
+    Some(url)
+}
+
+#[derive(Clone)]
+pub struct Context {
+    client: Client,
+    user_logins: Signal<UserLogins>,
+    update_user_logins: WriteSignal<UserLogins>,
+    no_accounts_yet: Signal<bool>,
+    logged_in_user: Signal<Option<UserLogin>>,
+    is_logged_in: Signal<bool>,
+}
+
+fn provide_context() -> Context {
+    let client = Client::new(get_api_url().expect("could not get api url"));
+
+    let Storage {
+        value: user_logins,
+        update_value: update_user_logins,
+        ..
+    } = use_user_logins();
+
+    let no_accounts_yet =
+        Signal::derive(move || with!(|user_logins| { user_logins.users.is_empty() }));
+
+    let logged_in_user = Signal::derive(move || {
+        with!(|user_logins| {
+            user_logins
+                .logged_in
+                .as_ref()
+                .and_then(|user_id| user_logins.users.get(user_id))
+                .cloned()
+        })
+    });
+
+    let is_logged_in = Signal::derive(move || with!(|user_logins| user_logins.logged_in.is_some()));
+
     let context = Context {
-        user_logins: use_storage::<UserLogins>(StorageKey::UserLogins),
+        client,
+        user_logins,
+        update_user_logins,
+        no_accounts_yet,
+        logged_in_user,
+        is_logged_in,
     };
 
     leptos::provide_context(context.clone());
@@ -56,14 +129,14 @@ pub fn expect_context() -> Context {
 }
 
 #[component]
-pub fn BootstrapIcon(#[prop(into)] icon: Oco<'static, str>) -> impl IntoView {
-    view! { <i class={format!("bi bi-{icon}")}></i> }
-}
-
-#[component]
 pub fn App() -> impl IntoView {
     provide_meta_context();
-    provide_context();
+    let Context {
+        client,
+        is_logged_in,
+        update_user_logins,
+        ..
+    } = provide_context();
 
     let (bs_theme, toggle_theme, theme_icon) = {
         let UseColorModeReturn { mode, set_mode, .. } = use_color_mode();
@@ -103,21 +176,64 @@ pub fn App() -> impl IntoView {
                             <span class="navbar-toggler-icon"></span>
                         </button>
                         <div class="collapse navbar-collapse" id="navbar_content">
-                            <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-                                <li class="nav-item">
-                                    <a class="nav-link active" aria-current="page" href="#">"Home"</a>
-                                </li>
-                                <li class="nav-item">
-                                    <a class="nav-link" href="#">"Link"</a>
-                                </li>
-                            </ul>
+                            <div class="navbar-nav me-auto">
+
+                            </div>
+                            <div class="navbar-nav">
+                                <button
+                                    type="button"
+                                    class="nav-link btn btn-link"
+                                    on:click=move |_| toggle_theme()
+                                >
+                                    {move || view! { <BootstrapIcon icon={theme_icon.get()} /> }}
+                                </button>
+                                {move || {
+                                    let client = client.clone();
+                                    is_logged_in.get().then(move || {
+                                        view!{
+                                            <button
+                                                type="button"
+                                                class="nav-link btn btn-link"
+                                                on:click=move |_| {
+                                                    let client = client.clone();
+                                                    spawn_local(async move {
+                                                        client.logout().await?;
+                                                        Ok::<(), Error>(())
+                                                    }.log_and_discard_error());
+
+                                                    update_user_logins.update(|user_logins| user_logins.logged_in = None);
+                                                }
+                                            >
+                                                <BootstrapIcon icon="door-open-fill" />
+                                            </button>
+                                        }
+                                    })
+                                }}
+                            </div>
                         </div>
                     </div>
                 </nav>
 
                 <main class="main d-flex flex-column w-100 h-100 mw-100 mh-100">
                     <Routes>
-                        <Route path="/" view=Index />
+                        <Route path="/" view=IndexPage />
+                        <Route path="/register" view=move || {
+                            if is_logged_in.get() {
+                                view!{ <Redirect path="/" /> }.into_view()
+                            }
+                            else {
+                                view!{ <RegisterPage /> }.into_view()
+                            }
+                        } />
+                        <Route path="/login" view=move || {
+                            if is_logged_in.get() {
+                                view!{ <Redirect path="/" /> }.into_view()
+                            }
+                            else {
+                                view!{ <LoginPage /> }.into_view()
+                            }
+                        } />
+                        <Route path="/login/:user_id/:auth_secret" view=LoginWithUrl />
                     </Routes>
                 </main>
             </div>

@@ -5,6 +5,8 @@ use axum::{
 };
 use semantica_protocol::error::ApiError;
 
+use crate::api::AsStatusCode;
+
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("axum")]
@@ -28,6 +30,9 @@ pub enum Error {
     #[error("api")]
     Api(#[from] ApiError),
 
+    #[error("session")]
+    TowerSession(#[from] tower_sessions::session::Error),
+
     #[error("password hash")]
     PasswordHash,
 }
@@ -44,19 +49,6 @@ impl From<Error> for ApiError {
 impl From<argon2::password_hash::Error> for Error {
     fn from(_: argon2::password_hash::Error) -> Self {
         Self::PasswordHash
-    }
-}
-
-trait AsStatusCode {
-    fn as_status_code(&self) -> StatusCode;
-}
-
-impl AsStatusCode for ApiError {
-    fn as_status_code(&self) -> StatusCode {
-        match self {
-            ApiError::Internal => StatusCode::INTERNAL_SERVER_ERROR,
-            ApiError::AuthenticationFailed => StatusCode::UNAUTHORIZED,
-        }
     }
 }
 

@@ -22,9 +22,12 @@ web-sys = { version = "0.3", features = ["HtmlInputElement", "ScrollIntoViewOpti
 futures = "0.3"
 lazy_static = "1.4"
 strum = { version = "0.26", features = ["derive"] }
-reqwest = { version = "0.11", features = ["json", "stream"] }
-eventsource-stream = "0.2"
 serde_json = "1"
+url = "2.5"
+pin-project = "1.1"
 
 [dependencies.semantica-protocol]
 path = "../semantica-protocol"
+
+[dependencies.semantica-client]
+path = "../semantica-client"

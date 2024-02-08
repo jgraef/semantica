@@ -25,7 +25,7 @@ pub enum Event {
 }
 
 pub async fn subscribe(
-    State(context): State<Context>,
+    State(_context): State<Context>,
 ) -> Sse<impl Stream<Item = Result<sse::Event, Error>>> {
     // todo: subscribe to events
     let stream = futures::stream::empty::<Event>();

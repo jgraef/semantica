@@ -12,25 +12,19 @@ use crate::user::UserId;
 /// # TODO
 ///
 /// - overwrite with zeroes on drop.
-#[derive(Clone, Serialize, PartialEq, Deserialize, derive_more::From)]
+#[derive(Clone, Serialize, PartialEq, Deserialize, derive_more::From, derive_more::Display, derive_more::FromStr)]
 #[serde(transparent)]
-pub struct Secret(pub String);
+pub struct Secret<T>(pub T);
 
-impl Secret {
-    pub fn unwrap(self) -> String {
-        self.0
-    }
-}
-
-impl Debug for Secret {
+impl<T> Debug for Secret<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("Secret").field(&"xxxx").finish()
+        f.debug_tuple("Secret").field(&"REDACTED").finish()
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, derive_more::Display, derive_more::FromStr)]
 #[serde(transparent)]
-pub struct AuthSecret(pub Secret);
+pub struct AuthSecret(pub Secret<String>);
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum AuthRequest {

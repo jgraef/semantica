@@ -39,7 +39,7 @@ impl Ai {
         }
     }
 
-    pub async fn craft(&self, ingredients: &[&str]) -> Result<CraftingProduct, Error> {
+    pub async fn craft(&self, ingredients: &[&str]) -> Result<CraftingResult, Error> {
         #[derive(Debug, Template)]
         #[template(path = "crafting_prompt.txt")]
         struct CraftingPrompt<'a> {
@@ -50,15 +50,15 @@ impl Ai {
 
         let response = self.crafting_model.generate(&prompt).await?;
 
-        let product: CraftingProduct = serde_json::from_str(&response)?;
+        let product: CraftingResult = serde_json::from_str(&response)?;
 
         Ok(product)
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct CraftingProduct {
-    pub thing: String,
+#[derive(Debug, Deserialize)]
+pub struct CraftingResult {
+    pub name: String,
     pub emoji: String,
     pub description: String,
 }
