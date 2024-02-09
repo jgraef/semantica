@@ -96,7 +96,7 @@ pub fn MainPage() -> impl IntoView {
                         <span class="me-3"><BootstrapIcon icon="search" /></span>
                     </div>
                 </form>
-                <div class="flex-grow-1 p-2">
+                <div class="d-flex flex-wrap p-2">
                     <For
                         each=move || with!(|inventory| inventory.spells_sorted.clone())
                         key=|id| *id
@@ -104,12 +104,15 @@ pub fn MainPage() -> impl IntoView {
                             with!(|inventory| {
                                 let spell_amount = inventory.spells.get(&id).unwrap();
                                 view!{
-                                    <div class="d-inline rounded bg-secondary py-1 px-2">
+                                    <button
+                                        type="button"
+                                        class="btn btn-secondary m-1 py-1"
+                                    >
                                         {spell_amount.amount}
                                         <BootstrapIcon icon="x" />
                                         {spell_amount.spell.emoji.clone()}
                                         {spell_amount.spell.name.clone()}
-                                    </div>
+                                    </button>
                                 }
                             })
                         }

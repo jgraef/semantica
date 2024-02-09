@@ -15,9 +15,7 @@ pub async fn get_inventory(
     Authenticated(user_id): Authenticated,
 ) -> Result<Json<InventoryResponse>, Error> {
     let mut transaction = game.transaction().await?;
-
-    let inventory = transaction.fetch_user_inventory(user_id).await?;
+    let inventory = transaction.fetch_inventory(user_id).await?;
     transaction.commit().await?;
-
     Ok(Json(InventoryResponse { inventory }))
 }

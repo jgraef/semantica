@@ -101,27 +101,3 @@ INSERT INTO properties (
     '1c02e958-b74c-48f3-97e8-a7d5a8f53703',
     'false'
 );
-
-
--- todo
--- INSERT INTO spells (
---     spell_id,   
---     name,
---     emoji,
---     description
--- ) VALUES (
---     '530aee22-dab5-4ff3-8737-04d686d6c2d6',
---     'Earth',
---     '🌍',
---     'placeholder for description'
--- );
--- 
--- INSERT INTO inventory_contents (
---     user_id,
---     spell_id,
---     amount
--- ) VALUES (
---     '43d65ac1-2778-49e8-b28d-65c7334cec32',
---     '530aee22-dab5-4ff3-8737-04d686d6c2d6',
---     100
--- );

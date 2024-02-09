@@ -18,7 +18,7 @@ sqlx = { version = "0.7", features = ["uuid", "chrono", "postgres", "runtime-tok
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 hf-textgen = { git = "https://github.com/jgraef/hf-textgen.git" }
-murmur3 = { git = "https://github.com/jgraef/murmur3.git" }
+murmur3 = { git = "https://github.com/jgraef/murmur3.git", features = ["compat"] }
 askama = { version = "0.12", features = ["serde-json", "markdown"] }
 uuid = { version = "1.7", features = ["serde", "v4"] }
 chrono = { version = "0.4", features = ["serde"] }

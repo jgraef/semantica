@@ -41,8 +41,8 @@ pub fn routes() -> Router<Game> {
         .route("/logout", get(auth::logout))
         .route("/register", post(auth::register))
         .route("/inventory", get(inventory::get_inventory))
-        .route("/node/current", get(node::current_nodes))
-        .route("/node/:node_id", get(node::get_nodes))
+        .route("/node/current", get(node::current_node))
+        .route("/node/:node_id", get(node::get_node))
         .route("/events", get(events::subscribe))
         .fallback(any(not_found))
 }

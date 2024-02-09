@@ -17,12 +17,20 @@ use semantica_protocol::{
         NewUserResponse,
     },
     error::ApiError,
+    node::{
+        NodeId,
+        NodeResponse,
+        ResponseNode,
+    },
     user::{
         InventoryResponse,
         UserId,
     },
 };
-use serde::Deserialize;
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use url::Url;
 
 use crate::{
@@ -152,4 +160,32 @@ impl Client {
             .await?;
         Ok(response)
     }
+
+    pub async fn node(&self, selector: NodeSelector) -> Result<ResponseNode, Error> {
+        let mut url = self.url().add("node");
+        match selector {
+            NodeSelector::UserPosition => {
+                url = url.add("current");
+            }
+            NodeSelector::Id(node_id) => {
+                url = url.add(node_id);
+            }
+        }
+
+        let response = self
+            .client
+            .get(url.build())
+            .send()
+            .await?
+            .into_api_result_json::<NodeResponse>()
+            .await?;
+
+        Ok(response.node)
+    }
+}
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+pub enum NodeSelector {
+    UserPosition,
+    Id(NodeId),
 }

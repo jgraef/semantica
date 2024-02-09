@@ -170,7 +170,7 @@ pub fn App() -> impl IntoView {
         />
         <Router>
             <div class="d-flex flex-column" style="height: 100vh; width: 100vw">
-                <nav class="navbar navbar-expand-lg shadow">
+                <nav class="navbar navbar-expand-lg shadow" data-bs-theme="dark"> // we should set the foreground color properly
                     <div class="container-fluid">
                         <A class="navbar-brand" href="/">"Semantica"</A>
                         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar_content" aria-controls="navbar_content" aria-expanded="false" aria-label="Toggle navigation">

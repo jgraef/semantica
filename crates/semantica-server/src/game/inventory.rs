@@ -3,21 +3,27 @@ use semantica_protocol::{
     spell::{
         Spell,
         SpellAmount,
+        SpellId,
     },
     user::{
         UserId,
         UserLink,
     },
+    Links,
 };
+use uuid::Uuid;
 
 use super::Transaction;
 use crate::{
     error::Error,
-    utils::convert::FromDb,
+    utils::convert::{
+        FromDb,
+        ToDb,
+    },
 };
 
 impl<'a> Transaction<'a> {
-    pub async fn fetch_user_inventory(
+    pub async fn fetch_inventory(
         &mut self,
         user_id: UserId,
     ) -> Result<Vec<SpellAmount<Spell<UserLink>>>, Error> {
@@ -65,5 +71,36 @@ impl<'a> Transaction<'a> {
         }
 
         Ok(inventory)
+    }
+
+    pub async fn add_to_inventory<Spell: Links<SpellId>>(
+        &mut self,
+        user_id: UserId,
+        mut spell_amount: SpellAmount<Spell>,
+    ) -> Result<SpellAmount<Spell>, Error> {
+        let new_amount = sqlx::query_scalar!(
+            r#"
+            INSERT INTO inventory_contents (
+                user_id,
+                spell_id,
+                amount
+            ) VALUES (
+                $1, $2, $3
+            )
+            ON CONFLICT (user_id, spell_id)
+                DO UPDATE SET amount = inventory_contents.amount + $3
+            RETURNING amount
+            "#,
+            ToDb::<Uuid>::to_db(&user_id)?,
+            ToDb::<Uuid>::to_db(&spell_amount.id())?,
+            ToDb::<i32>::to_db(&spell_amount.amount)?,
+        )
+        .fetch_one(self.db())
+        .await?
+        .from_db()?;
+
+        spell_amount.amount = new_amount;
+
+        Ok(spell_amount)
     }
 }

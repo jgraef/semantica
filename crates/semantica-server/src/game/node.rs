@@ -5,9 +5,11 @@ use semantica_protocol::{
     node::{
         Atom,
         Content,
+        Fork,
         Node,
         NodeId,
         Paragraph,
+        ParentLink,
         ResponseNode,
     },
     spell::{
@@ -41,10 +43,10 @@ pub fn create_root_node(content: Content) -> CreateNode {
     CreateNode {
         node_id: Uuid::new_v4().into(),
         parent: None,
-        parent_position: None,
+        natural_child: None,
+        fork_children: vec![],
         created_at: None,
         created_by: None,
-        created_with: None,
         content: content,
     }
 }
@@ -102,10 +104,62 @@ struct NodeRow {
 
 impl FromDb<ResponseNode> for NodeRow {
     fn from_db(self) -> Result<ResponseNode, DbConversionError> {
+        let parent_id: Option<NodeId> = self.parent_id.from_db()?;
         Ok(ResponseNode {
             node_id: self.node_id.from_db()?,
-            parent: self.parent_id.from_db()?,
-            parent_position: self.parent_position.from_db()?,
+            parent: parent_id
+                .map(|parent_id| {
+                    let fork = match (
+                        self.parent_position,
+                        self.created_with_spell_id,
+                        self.created_with_name,
+                        self.created_with_emoji,
+                        self.created_with_description,
+                    ) {
+                        (
+                            Some(position),
+                            Some(spell_id),
+                            Some(name),
+                            Some(emoji),
+                            Some(description),
+                        ) => {
+                            let created_by = match (
+                                self.created_with_created_by_user_id,
+                                self.created_with_created_by_name,
+                            ) {
+                                (Some(user_id), Some(name)) => {
+                                    Some(UserLink {
+                                        user_id: user_id.from_db()?,
+                                        name,
+                                    })
+                                }
+                                (None, None) => None,
+                                _ => bug!(),
+                            };
+                            Some(Fork {
+                                position: position.from_db()?,
+                                spell: Spell {
+                                    spell_id: spell_id.from_db()?,
+                                    name,
+                                    emoji,
+                                    description,
+                                    created_at: self.created_with_created_at.from_db()?,
+                                    created_by,
+                                },
+                            })
+                        }
+                        (None, None, None, None, None) => None,
+                        _ => bug!(),
+                    };
+
+                    Ok::<_, DbConversionError>(ParentLink {
+                        node_id: parent_id,
+                        fork,
+                    })
+                })
+                .transpose()?,
+            natural_child: None,   // todo
+            fork_children: vec![], // todo
             created_at: self.created_at.from_db()?,
             created_by: match (self.created_by_user_id, self.created_by_name) {
                 (Some(user_id), Some(name)) => {
@@ -117,38 +171,6 @@ impl FromDb<ResponseNode> for NodeRow {
                 (None, None) => None,
                 _ => bug!(),
             },
-            created_with: match (
-                self.created_with_spell_id,
-                self.created_with_name,
-                self.created_with_emoji,
-                self.created_with_description,
-            ) {
-                (Some(spell_id), Some(name), Some(emoji), Some(description)) => {
-                    let created_by = match (
-                        self.created_with_created_by_user_id,
-                        self.created_with_created_by_name,
-                    ) {
-                        (Some(user_id), Some(name)) => {
-                            Some(UserLink {
-                                user_id: user_id.from_db()?,
-                                name,
-                            })
-                        }
-                        (None, None) => None,
-                        _ => bug!(),
-                    };
-                    Some(Spell {
-                        spell_id: spell_id.from_db()?,
-                        name,
-                        emoji,
-                        description,
-                        created_at: self.created_with_created_at.from_db()?,
-                        created_by,
-                    })
-                }
-                (None, None, None, None) => None,
-                _ => bug!(),
-            },
             content: self.content.from_db()?,
         })
     }
@@ -156,6 +178,8 @@ impl FromDb<ResponseNode> for NodeRow {
 
 impl<'a> Transaction<'a> {
     pub async fn insert_node(&mut self, node: &CreateNode) -> Result<(), Error> {
+        tracing::debug!(node_id = ?node.node_id, "inserting node");
+
         sqlx::query!(
             r#"
             INSERT INTO nodes (
@@ -178,16 +202,18 @@ impl<'a> Transaction<'a> {
             "#,
             ToDb::<Uuid>::to_db(&node.node_id)?,
             ToDb::<serde_json::Value>::to_db(&node.content)?,
-            ToDb::<Option<Uuid>>::to_db(&node.parent)?,
-            ToDb::<Option<i32>>::to_db(&node.parent_position)?,
+            ToDb::<Option<Uuid>>::to_db(&node.parent_id())?,
+            ToDb::<Option<i32>>::to_db(&node.parent_position())?,
             ToDb::<Option<NaiveDateTime>>::to_db(&node.created_at)?,
             ToDb::<Option<Uuid>>::to_db(&node.created_by)?,
-            ToDb::<Option<Uuid>>::to_db(&node.created_with)?,
+            ToDb::<Option<Uuid>>::to_db(&node.created_with().copied())?,
         )
         .execute(self.db())
         .await?;
 
         if node.parent.is_none() {
+            tracing::debug!(node_id = ?node.node_id, "inserting node as root node");
+
             sqlx::query!(
                 "INSERT INTO root_nodes (node_id) VALUES ($1)",
                 node.node_id.0

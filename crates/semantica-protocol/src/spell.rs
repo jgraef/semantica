@@ -40,6 +40,8 @@ pub struct Recipe {
     Serialize,
     Deserialize,
     derive_more::From,
+    derive_more::FromStr,
+    derive_more::Display,
 )]
 #[serde(transparent)]
 pub struct SpellId(pub Uuid);

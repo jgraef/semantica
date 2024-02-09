@@ -1,6 +1,8 @@
 pub mod ai;
+pub mod auth;
 pub mod inventory;
 pub mod node;
+pub mod spell;
 
 use std::{
     net::SocketAddr,
@@ -16,10 +18,12 @@ use axum::{
 };
 use chrono::{
     DateTime,
-    NaiveDateTime,
     Utc,
 };
-use semantica_protocol::auth::AuthSecret;
+use semantica_protocol::{
+    auth::AuthSecret,
+    spell::SpellAmount,
+};
 use serde::{
     Deserialize,
     Serialize,
@@ -62,7 +66,6 @@ use uuid::{
 };
 
 use crate::{
-    api::auth::hash_auth_secret,
     error::Error,
     game::{
         ai::Ai,
@@ -70,6 +73,7 @@ use crate::{
             create_node_content,
             create_root_node,
         },
+        spell::create_spell,
     },
 };
 
@@ -122,7 +126,10 @@ impl Game {
 
         let mut transaction = self.transaction().await?;
 
-        let is_initialized = transaction.get_property::<bool>(INITIALIZED).await?;
+        let is_initialized = transaction
+            .get_property::<bool>(INITIALIZED)
+            .await
+            .unwrap_or_default();
 
         if !is_initialized {
             transaction.initialize_game_state().await?;
@@ -290,10 +297,6 @@ impl<'a> Transaction<'a> {
         self.now
     }
 
-    pub fn now_naive(&self) -> NaiveDateTime {
-        self.now.naive_utc()
-    }
-
     pub async fn initialize_game_state(&mut self) -> Result<(), Error> {
         tracing::info!("initializing game state");
 
@@ -304,29 +307,37 @@ impl<'a> Transaction<'a> {
         let root_node = create_root_node(content);
         self.insert_node(&root_node).await?;
 
-        // create debug user
-        let auth_secret = AuthSecret("1UePwNhkVj_MyoE7wfXlBgCH6zncFLYv".to_owned().into());
-        sqlx::query!(
-            r#"
-            INSERT INTO users (
-                user_id,
-                name,
-                auth_secret,
-                in_node,
-                god_mode
-            ) VALUES (
-                '43d65ac1-2778-49e8-b28d-65c7334cec32',
-                'test',
-                $1,
-                $2,
-                true
-            );
-            "#,
-            hash_auth_secret(auth_secret).await,
-            root_node.node_id.0
+        // create test user
+        let test_user_id = uuid!("43d65ac1-2778-49e8-b28d-65c7334cec32").into();
+        self.insert_user(
+            test_user_id,
+            "test",
+            AuthSecret("1UePwNhkVj_MyoE7wfXlBgCH6zncFLYv".to_owned().into()),
         )
-        .execute(self.db())
         .await?;
+
+        const SPELLS: &[(&'static str, &'static str)] = &[
+            ("Wind", "🌬️"),
+            ("Earth", "🌍"),
+            ("Fire", "🔥"),
+            ("Water", "🌊"),
+        ];
+        for (name, emoji) in SPELLS {
+            let spell = create_spell(
+                (*name).to_owned(),
+                (*emoji).to_owned(),
+                "placeholder".to_owned(),
+            );
+            self.insert_spell(&spell).await?;
+            self.add_to_inventory(
+                test_user_id,
+                SpellAmount {
+                    spell: spell.spell_id,
+                    amount: 100,
+                },
+            )
+            .await?;
+        }
 
         Ok(())
     }

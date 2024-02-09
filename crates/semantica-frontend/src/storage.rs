@@ -82,7 +82,7 @@ impl Default for UserLogins {
             user_id,
             UserLogin {
                 user_id,
-                name: "debug".to_owned(),
+                name: "test".to_owned(),
                 auth_secret: AuthSecret("1UePwNhkVj_MyoE7wfXlBgCH6zncFLYv".to_owned().into()),
                 login_link_noticed: false,
             },
