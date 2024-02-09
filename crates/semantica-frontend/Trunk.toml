@@ -2,5 +2,8 @@
 target = "index.html"
 dist = "dist/"
 
+[serve]
+port = 8001
+
 [[proxy]]
 backend = "http://localhost:8000/api/v1/"

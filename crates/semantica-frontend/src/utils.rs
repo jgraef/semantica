@@ -1,51 +1,25 @@
-use std::{
-    fmt::Display,
-    pin::Pin,
-    task::{
-        Context,
-        Poll,
-    },
+use futures::{
+    Future,
+    FutureExt,
 };
+use leptos::spawn_local;
 
-use futures::Future;
-use pin_project::pin_project;
+pub fn spawn_local_and_handle_error<
+    F: Future<Output = Result<(), E>> + 'static,
+    E: std::error::Error,
+>(
+    fut: F,
+) {
+    spawn_local(fut.map(|result| {
+        if let Err(error) = result {
+            let mut error: &dyn std::error::Error = &error;
 
-#[pin_project]
-pub struct LogAndDiscardErrorFuture<F> {
-    #[pin]
-    inner: F,
-}
+            log::error!("{error}");
 
-impl<F: Future<Output = Result<(), E>>, E: std::error::Error> Future
-    for LogAndDiscardErrorFuture<F>
-{
-    type Output = ();
-
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let this = self.project();
-        match this.inner.poll(cx) {
-            Poll::Pending => Poll::Pending,
-            Poll::Ready(Ok(())) => Poll::Ready(()),
-            Poll::Ready(Err(error)) => {
-                let mut error: &dyn std::error::Error = &error;
-
-                log::error!("{error}");
-
-                while let Some(source) = error.source() {
-                    log::error!(" - {source}");
-                    error = source;
-                }
-
-                Poll::Ready(())
+            while let Some(source) = error.source() {
+                log::error!(" - {source}");
+                error = source;
             }
         }
-    }
+    }));
 }
-
-pub trait LogAndDiscardErrorExt: Sized {
-    fn log_and_discard_error(self) -> LogAndDiscardErrorFuture<Self> {
-        LogAndDiscardErrorFuture { inner: self }
-    }
-}
-
-impl<F: Future<Output = Result<(), E>>, E: Display> LogAndDiscardErrorExt for F {}

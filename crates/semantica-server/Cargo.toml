@@ -29,6 +29,8 @@ tower-sessions-sqlx-store = { version = "0.10", features = ["postgres"] }
 async-trait = "0.1"
 tower-http = { version = "0.5", features = ["trace", "normalize-path"] }
 tower-layer = "0.3"
+regex = "1"
+lazy_static = "1"
 
 [dependencies.semantica-protocol]
 path = "../semantica-protocol"

@@ -1,3 +1,9 @@
+pub mod auth;
+pub mod crafting;
+pub mod events;
+pub mod inventory;
+pub mod node;
+
 use axum::{
     http::StatusCode,
     routing::{
@@ -9,13 +15,9 @@ use axum::{
 };
 use semantica_protocol::error::ApiError;
 
-pub mod auth;
-pub mod crafting;
-pub mod events;
-
 use crate::{
-    context::Context,
     error::Error,
+    game::Game,
 };
 
 pub trait AsStatusCode {
@@ -32,12 +34,15 @@ impl AsStatusCode for ApiError {
     }
 }
 
-pub fn routes() -> Router<Context> {
+pub fn routes() -> Router<Game> {
     Router::new()
         .route("/", get(index))
         .route("/login", post(auth::login))
         .route("/logout", get(auth::logout))
         .route("/register", post(auth::register))
+        .route("/inventory", get(inventory::get_inventory))
+        .route("/node/current", get(node::current_nodes))
+        .route("/node/:node_id", get(node::get_nodes))
         .route("/events", get(events::subscribe))
         .fallback(any(not_found))
 }

@@ -8,6 +8,14 @@ use serde::{
 };
 use uuid::Uuid;
 
+use crate::{
+    spell::{
+        Spell,
+        SpellAmount,
+    },
+    Links,
+};
+
 #[derive(
     Copy,
     Clone,
@@ -20,7 +28,8 @@ use uuid::Uuid;
     Serialize,
     Deserialize,
     derive_more::From,
-    derive_more::Display, derive_more::FromStr
+    derive_more::Display,
+    derive_more::FromStr,
 )]
 pub struct UserId(pub Uuid);
 
@@ -31,8 +40,25 @@ pub struct User {
     pub created_at: DateTime<Utc>,
 }
 
+impl Links<UserId> for User {
+    fn id(&self) -> UserId {
+        self.user_id
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct UserLink {
     pub user_id: UserId,
     pub name: String,
+}
+
+impl Links<UserId> for UserLink {
+    fn id(&self) -> UserId {
+        self.user_id
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct InventoryResponse {
+    pub inventory: Vec<SpellAmount<Spell<UserLink>>>,
 }

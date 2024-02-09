@@ -35,13 +35,27 @@ pub enum Error {
 
     #[error("password hash")]
     PasswordHash,
+
+    #[error("db conversion")]
+    DbConversion(#[from] crate::utils::convert::DbConversionError),
+
+    #[error("io")]
+    Io(#[from] std::io::Error),
 }
 
 impl From<Error> for ApiError {
     fn from(error: Error) -> Self {
         match error {
             Error::Api(error) => error,
-            _ => ApiError::Internal,
+            _ => {
+                let mut error: &dyn std::error::Error = &error;
+                tracing::error!("returning internal server error: {error}");
+                while let Some(source) = error.source() {
+                    tracing::error!(" - {source}");
+                    error = source;
+                }
+                ApiError::Internal
+            }
         }
     }
 }

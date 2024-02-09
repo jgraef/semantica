@@ -28,7 +28,7 @@ use crate::{
         Storage,
         UserLogin,
     },
-    utils::LogAndDiscardErrorExt,
+    utils::spawn_local_and_handle_error,
 };
 
 #[component]
@@ -59,7 +59,7 @@ pub fn RegisterPage() -> impl IntoView {
                     if !name.is_empty() {
                         log::debug!("submit register. name={name:?}");
 
-                        spawn_local(async move {
+                        spawn_local_and_handle_error(async move {
                             let Context { client, .. } = expect_context();
                             let response = client.register(name.clone()).await?;
 
@@ -80,7 +80,7 @@ pub fn RegisterPage() -> impl IntoView {
                             });
 
                             Ok::<(), Error>(())
-                        }.log_and_discard_error());
+                        });
 
                     }
                 }

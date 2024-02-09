@@ -1,15 +1,26 @@
+use std::collections::HashMap;
+
 use leptos::{
     component,
+    spawn_local,
     view,
     IntoView,
+    RwSignal,
     SignalGet,
 };
 use leptos_router::Redirect;
+use semantica_protocol::spell::{
+    Spell,
+    SpellId,
+};
 
 use super::{
     expect_context,
+    game::MainPage,
+    BootstrapIcon,
     Context,
 };
+use crate::error::Error;
 
 #[component]
 pub fn IndexPage() -> impl IntoView {
@@ -40,14 +51,5 @@ pub fn IndexPage() -> impl IntoView {
                 _ => unreachable!()
             }
         }}
-    }
-}
-
-#[component]
-pub fn MainPage() -> impl IntoView {
-    view! {
-        <div class="p-4">
-            <h4>"TODO"</h4>
-        </div>
     }
 }

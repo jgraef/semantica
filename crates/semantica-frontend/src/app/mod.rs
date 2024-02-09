@@ -1,3 +1,4 @@
+pub mod game;
 pub mod index;
 pub mod login;
 pub mod register;
@@ -51,7 +52,7 @@ use crate::{
         UserLogin,
         UserLogins,
     },
-    utils::LogAndDiscardErrorExt,
+    utils::spawn_local_and_handle_error,
 };
 
 const GITHUB_PAGE: &'static str = "https://github.com/jgraef/semantica";
@@ -169,7 +170,7 @@ pub fn App() -> impl IntoView {
         />
         <Router>
             <div class="d-flex flex-column" style="height: 100vh; width: 100vw">
-                <nav class="navbar navbar-expand-lg bg-body-tertiary">
+                <nav class="navbar navbar-expand-lg shadow">
                     <div class="container-fluid">
                         <A class="navbar-brand" href="/">"Semantica"</A>
                         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar_content" aria-controls="navbar_content" aria-expanded="false" aria-label="Toggle navigation">
@@ -196,10 +197,10 @@ pub fn App() -> impl IntoView {
                                                 class="nav-link btn btn-link"
                                                 on:click=move |_| {
                                                     let client = client.clone();
-                                                    spawn_local(async move {
+                                                    spawn_local_and_handle_error(async move {
                                                         client.logout().await?;
                                                         Ok::<(), Error>(())
-                                                    }.log_and_discard_error());
+                                                    });
 
                                                     update_user_logins.update(|user_logins| user_logins.logged_in = None);
                                                 }

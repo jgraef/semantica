@@ -8,9 +8,12 @@ use serde::{
 };
 use uuid::Uuid;
 
-use crate::user::{
-    UserId,
-    UserLink,
+use crate::{
+    user::{
+        UserId,
+        UserLink,
+    },
+    Links,
 };
 
 #[derive(Copy, Clone, Debug, Serialize, Deserialize, derive_more::From)]
@@ -41,23 +44,35 @@ pub struct Recipe {
 #[serde(transparent)]
 pub struct SpellId(pub Uuid);
 
-impl SpellId {
-    pub fn from_name(name: &str) -> Self {
-        // todo: normalize (lower-case, trim), then hash (using murmur3) and convert
-        // hash into uuid probably want to have that function in the server
-        todo!();
-    }
-}
-
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Spell {
+pub struct Spell<CreatedBy: Links<UserId>> {
     pub spell_id: SpellId,
     pub name: String,
     pub emoji: String,
     pub description: String,
-    pub created_at: DateTime<Utc>,
-    pub created_by: UserLink,
+    pub created_at: Option<DateTime<Utc>>,
+    pub created_by: Option<CreatedBy>,
 }
+
+impl<CreatedBy: Links<UserId>> Links<SpellId> for Spell<CreatedBy> {
+    fn id(&self) -> SpellId {
+        self.spell_id
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SpellAmount<Spell> {
+    pub spell: Spell,
+    pub amount: usize,
+}
+
+impl<Spell: Links<SpellId>> Links<SpellId> for SpellAmount<Spell> {
+    fn id(&self) -> SpellId {
+        self.spell.id()
+    }
+}
+
+pub type ResponseSpellAmount = SpellAmount<Spell<UserLink>>;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CraftingRequest {
@@ -65,6 +80,6 @@ pub struct CraftingRequest {
 }
 
 pub struct CraftingResponse {
-    pub product: Spell,
+    pub product: Spell<UserLink>,
     pub first_discovery: bool,
 }

@@ -15,8 +15,8 @@ use serde::{
 };
 
 use crate::{
-    context::Context,
     error::Error,
+    game::Game,
 };
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -25,7 +25,7 @@ pub enum Event {
 }
 
 pub async fn subscribe(
-    State(_context): State<Context>,
+    State(_game): State<Game>,
 ) -> Sse<impl Stream<Item = Result<sse::Event, Error>>> {
     // todo: subscribe to events
     let stream = futures::stream::empty::<Event>();

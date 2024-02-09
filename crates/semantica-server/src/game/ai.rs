@@ -3,10 +3,7 @@ use hf_textgen::{
     Api,
     TextGeneration,
 };
-use serde::{
-    Deserialize,
-    Serialize,
-};
+use serde::Deserialize;
 use shuttle_secrets::SecretStore;
 
 use crate::error::Error;

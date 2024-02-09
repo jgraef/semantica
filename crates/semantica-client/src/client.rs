@@ -1,3 +1,8 @@
+use std::{
+    fmt::Display,
+    sync::Arc,
+};
+
 use eventsource_stream::Eventsource;
 use reqwest::{
     Response,
@@ -12,7 +17,10 @@ use semantica_protocol::{
         NewUserResponse,
     },
     error::ApiError,
-    user::UserId,
+    user::{
+        InventoryResponse,
+        UserId,
+    },
 };
 use serde::Deserialize;
 use url::Url;
@@ -56,28 +64,48 @@ impl IntoApiResult for Response {
     }
 }
 
+struct UrlBuilder {
+    url: Url,
+}
+
+impl UrlBuilder {
+    pub fn add(mut self, s: impl Display) -> Self {
+        let mut segments = self.url.path_segments_mut().unwrap();
+        segments.push(&s.to_string());
+        drop(segments);
+        self
+    }
+
+    pub fn build(self) -> Url {
+        self.url
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct Client {
     client: reqwest::Client,
-    base_url: Url,
+    base_url: Arc<Url>,
 }
 
 impl Client {
     pub fn new(base_url: Url) -> Self {
         let client = reqwest::Client::new();
-        Self { client, base_url }
+        Self {
+            client,
+            base_url: Arc::new(base_url),
+        }
+    }
+
+    fn url(&self) -> UrlBuilder {
+        UrlBuilder {
+            url: Url::clone(&self.base_url),
+        }
     }
 
     pub async fn register(&self, name: String) -> Result<NewUserResponse, Error> {
-        let mut url = self.base_url.clone();
-        {
-            let mut path = url.path_segments_mut().unwrap();
-            path.push("register");
-        };
-
         let response = self
             .client
-            .post(url)
+            .post(self.url().add("register").build())
             .json(&NewUserRequest { name })
             .send()
             .await?
@@ -86,20 +114,10 @@ impl Client {
         Ok(response)
     }
 
-    pub async fn login(
-        &self,
-        user_id: UserId,
-        auth_secret: AuthSecret,
-    ) -> Result<(), Error> {
-        let mut url = self.base_url.clone();
-        {
-            let mut path = url.path_segments_mut().unwrap();
-            path.push("login");
-        };
-
+    pub async fn login(&self, user_id: UserId, auth_secret: AuthSecret) -> Result<(), Error> {
         let _response = self
             .client
-            .post(url)
+            .post(self.url().add("login").build())
             .json(&AuthRequest::Secret {
                 user_id,
                 auth_secret,
@@ -112,23 +130,26 @@ impl Client {
         Ok(())
     }
 
-    pub async fn logout(
-        &self,
-    ) -> Result<(), Error> {
-        let mut url = self.base_url.clone();
-        {
-            let mut path = url.path_segments_mut().unwrap();
-            path.push("logout");
-        };
-
+    pub async fn logout(&self) -> Result<(), Error> {
         let _response = self
             .client
-            .get(url)
+            .get(self.url().add("logout").build())
             .send()
             .await?
             .into_api_result()
             .await?;
 
         Ok(())
+    }
+
+    pub async fn inventory(&self) -> Result<InventoryResponse, Error> {
+        let response = self
+            .client
+            .get(self.url().add("inventory").build())
+            .send()
+            .await?
+            .into_api_result_json::<InventoryResponse>()
+            .await?;
+        Ok(response)
     }
 }

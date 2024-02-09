@@ -18,16 +18,16 @@ use semantica_protocol::{
 
 use super::auth::Authenticated;
 use crate::{
-    context::Context,
     error::Error,
+    game::Game,
 };
 
 pub async fn craft(
-    State(context): State<Context>,
+    State(game): State<Game>,
     Authenticated(user_id): Authenticated,
     Json(crafting_request): Json<CraftingRequest>,
 ) -> Result<Json<CraftingResponse>, Error> {
-    let mut transaction = context.transaction().await?;
+    let mut transaction = game.transaction().await?;
 
     let mut ingredients = crafting_request
         .ingredients
@@ -45,11 +45,11 @@ pub async fn craft(
             spells.description AS spell_description,
             spells.created_at AS spell_created_at,
             spells.created_by AS spell_created_by,
-            users.user_id AS created_by,
-            users.name AS created_by_name
+            users.user_id AS "created_by?",
+            users.name AS "created_by_name?"
         FROM recipes
             INNER JOIN spells ON recipes.product = spells.spell_id
-            INNER JOIN users ON spells.created_by = users.user_id
+            LEFT OUTER JOIN users ON spells.created_by = users.user_id
         WHERE recipes.ingredients = $1
         "#,
         &ingredients
@@ -64,10 +64,18 @@ pub async fn craft(
                 name: row.spell_name,
                 emoji: row.spell_emoji,
                 description: row.spell_description,
-                created_at: Utc.from_utc_datetime(&row.spell_created_at),
-                created_by: UserLink {
-                    user_id: row.created_by.into(),
-                    name: row.created_by_name,
+                created_at: row
+                    .spell_created_at
+                    .as_ref()
+                    .map(|t| Utc.from_utc_datetime(t)),
+                created_by: match (row.created_by, row.created_by_name) {
+                    (Some(user_id), Some(name)) => {
+                        Some(UserLink {
+                            user_id: user_id.into(),
+                            name,
+                        })
+                    }
+                    _ => None,
                 },
             },
             first_discovery: false,
@@ -83,7 +91,7 @@ pub async fn craft(
         rows.sort_by_key(|row| row.spell_id);
         let ingredient_names = rows.iter().map(|row| row.name.as_str()).collect::<Vec<_>>();
 
-        let crafting_result = context.ai().craft(&ingredient_names).await?;
+        let crafting_result = game.ai().craft(&ingredient_names).await?;
 
         let created_at = Utc::now();
 
@@ -129,11 +137,11 @@ pub async fn craft(
                 name: crafting_result.name,
                 emoji: crafting_result.emoji,
                 description: crafting_result.description,
-                created_at,
-                created_by: UserLink {
+                created_at: Some(created_at),
+                created_by: Some(UserLink {
                     user_id,
                     name: user_name,
-                },
+                }),
             },
             first_discovery: true,
         }))

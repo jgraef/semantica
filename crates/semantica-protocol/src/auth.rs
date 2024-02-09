@@ -12,7 +12,15 @@ use crate::user::UserId;
 /// # TODO
 ///
 /// - overwrite with zeroes on drop.
-#[derive(Clone, Serialize, PartialEq, Deserialize, derive_more::From, derive_more::Display, derive_more::FromStr)]
+#[derive(
+    Clone,
+    Serialize,
+    PartialEq,
+    Deserialize,
+    derive_more::From,
+    derive_more::Display,
+    derive_more::FromStr,
+)]
 #[serde(transparent)]
 pub struct Secret<T>(pub T);
 
@@ -22,7 +30,9 @@ impl<T> Debug for Secret<T> {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, derive_more::Display, derive_more::FromStr)]
+#[derive(
+    Clone, Debug, PartialEq, Serialize, Deserialize, derive_more::Display, derive_more::FromStr,
+)]
 #[serde(transparent)]
 pub struct AuthSecret(pub Secret<String>);
 

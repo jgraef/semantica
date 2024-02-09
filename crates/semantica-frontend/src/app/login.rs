@@ -30,34 +30,31 @@ use crate::{
         Storage,
         UserLogin,
     },
-    utils::LogAndDiscardErrorExt,
+    utils::spawn_local_and_handle_error,
 };
 
 fn login(user_id: UserId, auth_secret: AuthSecret) {
     log::debug!("login: {user_id}");
 
-    spawn_local(
-        async move {
-            let Context { client, .. } = expect_context();
-            let Storage {
-                update_value: update_user_logins,
-                ..
-            } = use_user_logins();
+    spawn_local_and_handle_error(async move {
+        let Context { client, .. } = expect_context();
+        let Storage {
+            update_value: update_user_logins,
+            ..
+        } = use_user_logins();
 
-            client.login(user_id, auth_secret).await?;
+        client.login(user_id, auth_secret).await?;
 
-            update_user_logins.update(move |user_logins| {
-                user_logins.logged_in = Some(user_id);
-            });
+        update_user_logins.update(move |user_logins| {
+            user_logins.logged_in = Some(user_id);
+        });
 
-            // in theory this is unecessary, since the register route redirects to / when
-            // logged in. but somehow it doesn' re-render that part.
-            use_navigate()("/", Default::default());
+        // in theory this is unecessary, since the register route redirects to / when
+        // logged in. but somehow it doesn' re-render that part.
+        use_navigate()("/", Default::default());
 
-            Ok::<(), Error>(())
-        }
-        .log_and_discard_error(),
-    );
+        Ok::<(), Error>(())
+    });
 }
 
 #[component]

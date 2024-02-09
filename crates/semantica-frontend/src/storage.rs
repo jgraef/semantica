@@ -1,6 +1,7 @@
 use std::{
     borrow::Cow,
     collections::HashMap,
+    hash::Hash,
 };
 
 use leptos::{
@@ -19,6 +20,7 @@ use serde::{
     Deserialize,
     Serialize,
 };
+use uuid::uuid;
 
 #[derive(Clone, Debug)]
 pub enum StorageKey {
@@ -66,8 +68,28 @@ pub struct UserLogin {
     pub login_link_noticed: bool,
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct UserLogins {
     pub users: HashMap<UserId, UserLogin>,
     pub logged_in: Option<UserId>,
+}
+
+impl Default for UserLogins {
+    fn default() -> Self {
+        let mut users = HashMap::default();
+        let user_id = uuid!("43d65ac1-2778-49e8-b28d-65c7334cec32").into();
+        users.insert(
+            user_id,
+            UserLogin {
+                user_id,
+                name: "debug".to_owned(),
+                auth_secret: AuthSecret("1UePwNhkVj_MyoE7wfXlBgCH6zncFLYv".to_owned().into()),
+                login_link_noticed: false,
+            },
+        );
+        UserLogins {
+            users,
+            logged_in: None,
+        }
+    }
 }
